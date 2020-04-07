@@ -1,6 +1,6 @@
 /* TEC Firmware
- *  Thermoelectric Controller on a NodeMCU v3
- *  Using a IBT_2 (dual BTS7960S H-Bridge)and AM2302 temperature/humidity sensor.
+    Thermoelectric Controller on a NodeMCU v3
+    Using a IBT_2 (dual BTS7960S H-Bridge)and AM2302 temperature/humidity sensor.
 
   Pin Mapping
   ~ denotes PWM
@@ -23,33 +23,32 @@
   CMD     GPIO 11
   SD0     GPIO 7
   CLK     GPIO 6
- 
-  
- 
- */
-#define SSD1306_128_32
 
- #include "DHTesp.h"
- #include "RunningAverage.h"
- #include "PidController.h"
- #include "ACROBOTIC_SSD1306.h"
- #include <Wire.h>
 
- /* Define Pins */
+
+*/
+
+#include "DHTesp.h"
+#include "RunningAverage.h"
+#include "PidController.h"
+//#include "ACROBOTIC_SSD1306.h"
+#include <Wire.h>
+
+/* Define Pins */
 const uint8_t pinHBridgeREn = 13;
 const uint8_t pinHBridgeLEn = 15;
 const uint8_t pinHBridgeRPwm = 14;
 const uint8_t pinHBridgeLPwm = 12;
 
 
- DHTesp dht;
- float humidity;
- float temperature;
+DHTesp dht;
+float humidity;
+float temperature;
 
- uint32_t tSerial;
- uint32_t tDHTSample;
+uint32_t tSerial;
+uint32_t tDHTSample;
 
- uint16_t serialUpdatePeriod = 1000;
+uint16_t serialUpdatePeriod = 1000;
 
 float kp = 1.0;
 float ki = 0.01;
@@ -64,7 +63,7 @@ uint32_t tComputePid;
 uint32_t tSoftPwm;
 
 uint16_t softPwmPeriod = computePidInterval;
-uint16_t softPwmResolution = 100; 
+uint16_t softPwmResolution = 100;
 uint16_t softPwmInterval = softPwmPeriod / softPwmResolution;
 uint16_t softPwmCounter = 0;
 
@@ -79,13 +78,10 @@ bool isOn = true;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
-  Wire.begin();
+  //Wire.begin();
   dht.setup(0, DHTesp::DHT22);
-  oled.init();
-  oled.clearDisplay();
-  oled.setTextXY(2,0);
-  oled.setFont(font8x8);
-  
+
+
   tSerial = millis();
   tDHTSample = millis();
   tSoftPwm = millis();
@@ -97,71 +93,72 @@ void setup() {
   pinMode(pinHBridgeLPwm, OUTPUT);
   raTemperature.init(tempMeasNoAvg);
 
-  
+
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
 
-  if (millis() > tDHTSample + dht.getMinimumSamplingPeriod()){
-    tDHTSample+=dht.getMinimumSamplingPeriod();
+  if (millis() > tDHTSample + dht.getMinimumSamplingPeriod()) {
+    tDHTSample += dht.getMinimumSamplingPeriod();
     humidity = dht.getHumidity();
+    temperature = dht.getTemperature();
+    //
     temperature = raTemperature.addSample(dht.getTemperature());
-    
-  }
 
-  if(millis() > tComputePid + computePidInterval){
+  }
+/*
+  if (millis() > tComputePid + computePidInterval) {
     tComputePid += computePidInterval;
-    if (doPid){
-      
-      pidOutput = tecPID.AddSample(temperature);    
+    if (doPid) {
+
+      pidOutput = tecPID.AddSample(temperature);
     }
   }
 
-    if (millis() > tSoftPwm + softPwmInterval){
+  if (millis() > tSoftPwm + softPwmInterval) {
     tSoftPwm += softPwmInterval;
     softPwmCounter += softPwmInterval;
-    if(softPwmCounter > softPwmPeriod){
+    if (softPwmCounter > softPwmPeriod) {
       softPwmCounter = 0;
     }
-    if(isOn){
-      if (softPwmCounter < abs(pidOutput) * softPwmPeriod){
-        if(pidOutput > 0){ // output positive, heating
+    if (isOn) {
+      if (softPwmCounter < abs(pidOutput) * softPwmPeriod) {
+        if (pidOutput > 0) { // output positive, heating
           digitalWrite(pinHBridgeREn, HIGH);
           digitalWrite(pinHBridgeLEn, HIGH);
           digitalWrite(pinHBridgeLPwm, LOW);
           digitalWrite(pinHBridgeRPwm, HIGH);
-          
-        }else if(pidOutput < 0){ // output negative, cooling
+
+        } else if (pidOutput < 0) { // output negative, cooling
           digitalWrite(pinHBridgeREn, HIGH);
           digitalWrite(pinHBridgeLEn, HIGH);
           digitalWrite(pinHBridgeRPwm, LOW);
           digitalWrite(pinHBridgeLPwm, HIGH);
         }
-      }else{
+      } else {
         digitalWrite(pinHBridgeREn, LOW);
         digitalWrite(pinHBridgeLEn, LOW);
         digitalWrite(pinHBridgeLPwm, LOW);
         digitalWrite(pinHBridgeRPwm, LOW);
-      } 
+      }
     }
   }
+*/
 
+  if (millis() > tSerial + serialUpdatePeriod) {
+    tSerial += serialUpdatePeriod;
 
-  if (millis() > tSerial + serialUpdatePeriod){
-    tSerial+=serialUpdatePeriod;
-    oled.setTextXY(2,0);
-    oled.putFloat(temperature,1);
     Serial.print(dht.getStatusString());
     Serial.print('\t');
-    Serial.print(temperature,1);
+    Serial.print(temperature, 1);
     Serial.print('\t');
-    Serial.print(humidity,1);
+    Serial.print(humidity, 1);
     Serial.println('\t');
   }
-  
-  
 
-  
+
+
+
 
 }
