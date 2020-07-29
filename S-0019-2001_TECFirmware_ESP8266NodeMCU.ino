@@ -51,6 +51,10 @@ const char* password = STAPSK;
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
+#define MODE_IDLE 0
+#define MODE_HEATING 1
+#define MODE_COOLING 2
+
 /* Define Pins */
 const uint8_t pinHBridgeREn = 13;
 const uint8_t pinHBridgeLEn = 15;
@@ -92,11 +96,14 @@ uint16_t softPwmResolution = 100;
 uint16_t softPwmInterval = softPwmPeriod / softPwmResolution;
 uint16_t softPwmCounter = 0;
 
-RunningAverage<uint16_t> raTemperature;
-const uint8_t tempMeasNoAvg = 20; //Number of samples in the temperature measurement running average window
+RunningAverage<float> raTemperature;
+const uint16_t tempMeasNoAvg = 20; //Number of samples in the temperature measurement running average window
 
 bool doPid = true;
 bool isOn = true;
+
+uint8_t mode = MODE_IDLE;
+float temperatureThreshold = 1.0;
 
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
@@ -139,24 +146,21 @@ void setup() {
   
 
   EEPROM.get(addrSetpoint, setpoint);
-  Serial.println();
-  Serial.println(setpoint);
+  //Serial.println();
+  //Serial.println(setpoint);
   delay(100);
   
   tecPID = new PidController(kp, ki, kd, setpoint, computePidInterval);
-  Serial.print(tecPID->GetSetPoint());
-  Serial.print('\t');
-  Serial.print(tecPID->GetIntegralTerm());
-  Serial.println('\t');
-  tecPID->SetOutputLimits(-1.0, 1.0);
-  //tecPID->SetSetPoint(10);
-  //pidOutput = tecPID->AddSample(temperature);
   //Serial.print(tecPID->GetSetPoint());
   //Serial.print('\t');
   //Serial.print(tecPID->GetIntegralTerm());
   //Serial.println('\t');
-  //tecPID->SetSetPoint(setpoint);
-  
+  tecPID->SetOutputLimits(-1.0, 1.0);
+
+  delay(5000);
+  digitalWrite(pinFanB, LOW);
+
+
   
   
 
@@ -174,19 +178,62 @@ void loop() {
 
   }
 
+  switch(mode){
+    case MODE_IDLE:
+      if (temperature < setpoint - temperatureThreshold){
+        mode = MODE_HEATING;
+        tecPID->SetIntegralTerm(0.0); //reset integral term 
+        doPid = true;
+        digitalWrite(pinFanB, HIGH);
+      }
+      
+      if (temperature > setpoint + temperatureThreshold){
+        mode = MODE_COOLING;
+        tecPID->SetIntegralTerm(0.0); //reset integral term
+        doPid = true;
+        digitalWrite(pinFanB, HIGH);
+      }
+
+      break;
+    
+    case MODE_HEATING:
+      if (temperature > setpoint){
+        mode = MODE_IDLE;
+        doPid = false;
+        digitalWrite(pinFanB, LOW);
+      }
+      
+      break;
+    
+    case MODE_COOLING:
+      if (temperature < setpoint){
+        mode = MODE_IDLE;
+        doPid = false;
+        digitalWrite(pinFanB, LOW);
+      }
+      
+      break;
+
+    default:
+      break;
+  }
+
   if (millis() > tComputePid + computePidInterval) {
     tComputePid += computePidInterval;
     if (doPid) {
       if(!isnan(temperature)){
         pidOutput = tecPID->AddSample(temperature);
+        if (mode == MODE_IDLE){
+          pidOutput = 0;
+        }
       }
     }
   }
 
   if (millis() > tSoftPwm + softPwmInterval) {
     tSoftPwm += softPwmInterval;
-    softPwmCounter += softPwmInterval;
-    if (softPwmCounter > softPwmPeriod) {
+    softPwmCounter ++;
+    if (softPwmCounter > softPwmResolution) {
       softPwmCounter = 0;
     }
     if (isOn) {
@@ -273,6 +320,8 @@ void loop() {
     Serial.print(tecPID->GetKd(),3);
     Serial.print('\t');
     Serial.print(fanThreshold,3);
+    Serial.print('\t');
+    Serial.print(mode);
     Serial.println();
   }
   packetHandler();
@@ -317,6 +366,7 @@ void packetHandler(){
         if(isOn){
           
           doPid = true;
+          digitalWrite(pinFanB, HIGH);
         }else{
 
           digitalWrite(pinHBridgeREn, LOW);
