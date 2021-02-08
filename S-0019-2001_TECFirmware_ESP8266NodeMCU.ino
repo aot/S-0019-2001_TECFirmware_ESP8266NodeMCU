@@ -34,10 +34,10 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <ESP8266WiFi.h>
-#include <WiFiClient.h>
-#include <ESP8266WebServer.h>
-#include <ESP8266mDNS.h>
+//#include <ESP8266WiFi.h>
+//#include <WiFiClient.h>
+//#include <ESP8266WebServer.h>
+//#include <ESP8266mDNS.h>
 #include <EEPROM.h>
 
 #ifndef STASSID
@@ -78,7 +78,7 @@ uint16_t serialUpdatePeriod = 1000;
 float kp = 1.5;
 float ki = 0.0010;
 float kd = 10.0;
-float setpoint = 20;
+float setpoint = 27.0;
 float pidOutput = 0.0;
 uint16_t computePidInterval = 10000;
 
@@ -110,15 +110,19 @@ float temperatureThreshold = 1.0;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 void setup() {
+  
   // put your setup code here, to run once:
   Serial.begin(115200);
+  
   EEPROM.begin(512);
-  //Wire.begin();
+  
+  
   dht.setup(0, DHTesp::DHT22);
-  //humidity = dht.getHumidity();
-  //temperature = dht.getTemperature();
+  humidity = dht.getHumidity();
+  temperature = dht.getTemperature();
 
   tDHTSample = millis();
+  
   tSerial = millis();
   
   tSoftPwm = millis();
@@ -129,10 +133,11 @@ void setup() {
   pinMode(pinHBridgeRPwm, OUTPUT);
   pinMode(pinHBridgeLPwm, OUTPUT);
   pinMode(pinFanA, OUTPUT);
-  pinMode(pinFanB, OUTPUT);
+  pinMode(pinFanB, OUTPUT);'
   digitalWrite(pinFanA, LOW);
   digitalWrite(pinFanB, HIGH);
   raTemperature.init(tempMeasNoAvg);
+  
   
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
     Serial.println(F("SSD1306 allocation failed"));
@@ -144,23 +149,20 @@ void setup() {
   display.cp437(true);
   display.clearDisplay();
   
-
-  EEPROM.get(addrSetpoint, setpoint);
-  //Serial.println();
-  //Serial.println(setpoint);
+  float eepromSetpoint;
+  EEPROM.get(addrSetpoint, eepromSetpoint);
+  if(!isnan(eepromSetpoint)){
+    setpoint = eepromSetpoint;
+  }
   delay(100);
   
   tecPID = new PidController(kp, ki, kd, setpoint, computePidInterval);
-  //Serial.print(tecPID->GetSetPoint());
-  //Serial.print('\t');
-  //Serial.print(tecPID->GetIntegralTerm());
-  //Serial.println('\t');
   tecPID->SetOutputLimits(-1.0, 1.0);
 
   delay(5000);
   digitalWrite(pinFanB, LOW);
 
-
+  
   
   
 
@@ -168,6 +170,7 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  
 
   if (millis() > tDHTSample + dht.getMinimumSamplingPeriod()) {
     tDHTSample += dht.getMinimumSamplingPeriod();
@@ -237,11 +240,7 @@ void loop() {
       softPwmCounter = 0;
     }
     if (isOn) {
-      /*if (abs(pidOutput) < fanThreshold){
-        digitalWrite(pinFanB, HIGH);
-      }else{
-        digitalWrite(pinFanB, LOW);
-      }*/
+      
       if (softPwmCounter < abs(pidOutput) * softPwmPeriod) {
         if (pidOutput > 0) { // output positive, heating
           if (tecDir == 0){
@@ -280,10 +279,11 @@ void loop() {
     }
     
   }
-
+  
 
   if (millis() > tSerial + serialUpdatePeriod) {
     tSerial += serialUpdatePeriod;
+    
     //display.clearDisplay();
     display.setTextColor(WHITE, BLACK);
     
@@ -302,6 +302,7 @@ void loop() {
     
     display.display();
     
+    
 
     //Serial.print(dht.getStatusString());
     //Serial.print('\t');
@@ -311,6 +312,7 @@ void loop() {
     Serial.print('\t');
     Serial.print(tecPID->GetSetPoint(), 1);
     Serial.print('\t');
+    /*
     Serial.print(pidOutput, 2);
     Serial.print('\t');
     Serial.print(tecPID->GetKp(),3);
@@ -322,6 +324,7 @@ void loop() {
     Serial.print(fanThreshold,3);
     Serial.print('\t');
     Serial.print(mode);
+    */
     Serial.println();
   }
   packetHandler();
@@ -373,7 +376,6 @@ void packetHandler(){
           digitalWrite(pinHBridgeLEn, LOW);
           digitalWrite(pinHBridgeLPwm, LOW);
           digitalWrite(pinHBridgeRPwm, LOW);
-          digitalWrite(pinFanB, LOW);
           doPid = false;
           pidOutput = 0;
         }
