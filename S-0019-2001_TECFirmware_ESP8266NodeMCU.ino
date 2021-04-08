@@ -109,6 +109,8 @@ float temperatureThreshold = 1.0;
 #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+float eepromSetpoint;
+
 void setup() {
   
   // put your setup code here, to run once:
@@ -133,7 +135,7 @@ void setup() {
   pinMode(pinHBridgeRPwm, OUTPUT);
   pinMode(pinHBridgeLPwm, OUTPUT);
   pinMode(pinFanA, OUTPUT);
-  pinMode(pinFanB, OUTPUT);'
+  pinMode(pinFanB, OUTPUT);
   digitalWrite(pinFanA, LOW);
   digitalWrite(pinFanB, HIGH);
   raTemperature.init(tempMeasNoAvg);
@@ -149,11 +151,12 @@ void setup() {
   display.cp437(true);
   display.clearDisplay();
   
-  float eepromSetpoint;
+  
   EEPROM.get(addrSetpoint, eepromSetpoint);
   if(!isnan(eepromSetpoint)){
     setpoint = eepromSetpoint;
   }
+  Serial.println(eepromSetpoint);
   delay(100);
   
   tecPID = new PidController(kp, ki, kd, setpoint, computePidInterval);
@@ -312,6 +315,8 @@ void loop() {
     Serial.print('\t');
     Serial.print(tecPID->GetSetPoint(), 1);
     Serial.print('\t');
+    Serial.print(eepromSetpoint, 1);
+    Serial.print('\t');
     /*
     Serial.print(pidOutput, 2);
     Serial.print('\t');
@@ -347,6 +352,7 @@ void packetHandler(){
         tecPID->SetSetPoint(setpoint);
         EEPROM.put(addrSetpoint, setpoint);
         EEPROM.commit();
+        EEPROM.get(addrSetpoint, eepromSetpoint);
         break;
 
       case 'p': //kp
